@@ -128,3 +128,53 @@ public class Experiment {
         }
     }
 }
+private void runYearExperiment() {
+    File directory = new File("atividade1PCD/atvcoletiva/arquivos/temperaturas_cidades");
+    File[] cityFiles = directory.listFiles((dir, name) -> name.endsWith(".csv"));
+
+    if (cityFiles == null || cityFiles.length == 0) {
+        System.out.println("Nenhum arquivo CSV encontrado no diretório.");
+        return;
+    }
+
+    System.out.println("Iniciando o processamento dos anos para todas as cidades.");
+
+    // Se for apenas uma thread, rodar tudo na thread principal
+    if (numThreads == 1) {
+        for (File cityFile : cityFiles) {
+            String cityID = cityFile.getName();
+            CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
+            Map<Integer, double[]> dataByYear = processor.getDataByYear();
+
+            if (dataByYear == null || dataByYear.isEmpty()) {
+                System.out.println("Nenhum dado de ano encontrado para a cidade " + cityID);
+                continue;
+            }
+
+            for (Map.Entry<Integer, double[]> entry : dataByYear.entrySet()) {
+                int year = entry.getKey();
+                double[] yearData = entry.getValue();
+                processor.processYearData(year, yearData);  // Processamento direto na thread principal
+            }
+
+            System.out.println("Processados todos os anos para a cidade " + cityID);
+        }
+
+        System.out.println("Processamento completo realizado na thread principal.");
+        return;  // Finaliza o método
+    }
+
+    // Se forem várias threads, continua o processamento como antes
+    for (File cityFile : cityFiles) {
+        String cityID = cityFile.getName();
+
+        CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
+        Map<Integer, double[]> dataByYear = processor.getDataByYear();
+
+        if (dataByYear == null || dataByYear.isEmpty()) {
+            System.out.println("Nenhum dado de ano encontrado para a cidade " + cityID);
+            continue;
+        }
+
+        Thread[] yearThreads = new Thread[dataByYear.size()];
+        int index = 0;
