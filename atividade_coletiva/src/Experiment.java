@@ -1,8 +1,12 @@
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Map;
 
 public class Experiment {
     private int numThreads;
     private boolean processByYear;
+    private final Object logSync = new Object();  // Objeto de sincronização para garantir consistência nos logs
 
     public Experiment(int numThreads, boolean processByYear) {
         this.numThreads = numThreads;
@@ -10,7 +14,7 @@ public class Experiment {
     }
 
     public void runExperiment() {
-        File directory = new File("temperaturas_cidades"); // se necessário alterar pelo seu path que contém os arquivos CSV.
+        File directory = new File("/Users/ygormachado/JavaProjetoColetivo/ATVcoletiva/temperaturas_cidades");
         File[] cityFiles = directory.listFiles((dir, name) -> name.endsWith(".csv"));
 
         if (cityFiles == null || cityFiles.length == 0) {
@@ -24,32 +28,47 @@ public class Experiment {
             cityIDs[i] = cityFiles[i].getName();
         }
 
+        // Exibe os IDs das cidades
+        System.out.println("IDs das cidades:");
+        for (String cityID : cityIDs) {
+            System.out.println(cityID);
+        }
+
         // Distribui e processa as cidades entre as threads
         divideAndProcessCities(cityIDs, directory);
     }
 
     private void divideAndProcessCities(String[] cityIDs, File directory) {
         int totalCities = cityIDs.length;
+        
+        // Se for apenas uma thread, rodar na thread principal
+        if (numThreads == 1) {
+            processCities(cityIDs, directory);
+            System.out.println("Processamento completo realizado na thread principal.");
+            return;  // Finaliza o método
+        }
+        
+        // Caso contrário, seguir a lógica original de múltiplas threads
         Thread[] threads = new Thread[numThreads];
         int citiesPerThread = Math.max(1, totalCities / numThreads);
-
+    
         for (int i = 0; i < numThreads; i++) {
             int startCityIndex = i * citiesPerThread;
             int endCityIndex = Math.min(startCityIndex + citiesPerThread, totalCities);
-
+    
             if (i == numThreads - 1) {
                 endCityIndex = totalCities;
             }
-
+    
             String[] citiesForThread = new String[endCityIndex - startCityIndex];
             System.arraycopy(cityIDs, startCityIndex, citiesForThread, 0, endCityIndex - startCityIndex);
-
+    
             threads[i] = new Thread(() -> {
                 processCities(citiesForThread, directory);
             });
             threads[i].start();
         }
-
+    
         for (Thread thread : threads) {
             try {
                 thread.join();
@@ -58,7 +77,7 @@ public class Experiment {
                 e.printStackTrace();
             }
         }
-
+    
         System.out.println("Todas as cidades neste lote foram processadas.");
     }
 
@@ -71,10 +90,12 @@ public class Experiment {
             }
 
             synchronized (this) {
+                CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
+
                 if (processByYear) {
                     // Processamento por ano, se habilitado
                 } else {
-                    // Processar cidades
+                    processor.processCityData();
                 }
             }
         }
@@ -98,83 +119,141 @@ public class Experiment {
             long executionTime = endTime - startTime;
             totalExecutionTime += executionTime;
     
-            // Criação do arquivo de versão de mês se o arquivo ainda não existir
+            // Criação do arquivo de versão de mês (versao_1.txt até versao_10.txt) apenas se o arquivo ainda não existir
+            saveTimeToFileIfNotExists("versao_" + (version + 1) + ".txt", 
+                "Número de threads: " + threads + "\n" + 
+                "Tempo de execução (Mês): " + executionTime + " ms\n");
             System.out.println("Experimento " + (version + 1) + " (Mês) concluído em: " + executionTime + " ms");
     
-            // Para os experimentos de ano
+            // Para os experimentos de ano (versao_11.txt até versao_20.txt)
             if (processByYear) {
                 long startYearTime = System.currentTimeMillis();
-                // Executar o experimento de ano
+                runYearExperiment();  // Executa o experimento de ano
                 long endYearTime = System.currentTimeMillis();
     
                 long yearExecutionTime = endYearTime - startYearTime;
                 totalYearExecutionTime += yearExecutionTime;
     
-                // Criação do arquivo de versão de ano se o arquivo ainda não existir.
+                // Criação do arquivo de versão de ano (versao_11.txt até versao_20.txt) apenas se o arquivo ainda não existir
+                saveTimeToFileIfNotExists("versao_" + (version + 11) + ".txt", 
+                    "Número de threads: " + threads + "\n" + 
+                    "Tempo de execução (Ano): " + yearExecutionTime + " ms\n");
                 System.out.println("Experimento " + (version + 11) + " (Ano) concluído em: " + yearExecutionTime + " ms");
             }
         }
     
-        // Cálculo do médio dos meses.
-         long averageExecutionTime = totalExecutionTime / 10;
-         System.out.println(averageExecutionTime);
-        // Criar o arquivo de tempo médio.
+        // Cálculo e criação do arquivo de tempo médio dos meses, apenas se o arquivo ainda não existir
+    long averageExecutionTime = totalExecutionTime / 10;
+    saveTimeToFileIfNotExists("tempo_medio_mes.txt", "Tempo médio de execução (Mês): " + averageExecutionTime + " ms\n");
+
     
-        // Cálculo do tempo médio dos anos.
+        // Cálculo e criação do arquivo de tempo médio dos anos
         if (processByYear) {
             long averageYearExecutionTime = totalYearExecutionTime / 10;
-            System.out.println(averageYearExecutionTime);
-            // Criar arquivo do tempo médio dos anos.
+            saveTimeToFile("tempo_medio_ano.txt", "Tempo médio de execução (Ano): " + averageYearExecutionTime + " ms\n");
         }
     }
-}
-private void runYearExperiment() {
-    File directory = new File("atividade1PCD/atvcoletiva/arquivos/temperaturas_cidades");
-    File[] cityFiles = directory.listFiles((dir, name) -> name.endsWith(".csv"));
-
-    if (cityFiles == null || cityFiles.length == 0) {
-        System.out.println("Nenhum arquivo CSV encontrado no diretório.");
-        return;
-    }
-
-    System.out.println("Iniciando o processamento dos anos para todas as cidades.");
-
-    // Se for apenas uma thread, rodar tudo na thread principal
-    if (numThreads == 1) {
+    
+    
+    private void runYearExperiment() {
+        File directory = new File("/Users/ygormachado/JavaProjetoColetivo/ATVcoletiva/temperaturas_cidades");
+        File[] cityFiles = directory.listFiles((dir, name) -> name.endsWith(".csv"));
+    
+        if (cityFiles == null || cityFiles.length == 0) {
+            System.out.println("Nenhum arquivo CSV encontrado no diretório.");
+            return;
+        }
+    
+        System.out.println("Iniciando o processamento dos anos para todas as cidades.");
+    
+        // Se for apenas uma thread, rodar tudo na thread principal
+        if (numThreads == 1) {
+            for (File cityFile : cityFiles) {
+                String cityID = cityFile.getName();
+                CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
+                Map<Integer, double[]> dataByYear = processor.getDataByYear();
+    
+                if (dataByYear == null || dataByYear.isEmpty()) {
+                    System.out.println("Nenhum dado de ano encontrado para a cidade " + cityID);
+                    continue;
+                }
+    
+                for (Map.Entry<Integer, double[]> entry : dataByYear.entrySet()) {
+                    int year = entry.getKey();
+                    double[] yearData = entry.getValue();
+                    processor.processYearData(year, yearData);  // Processamento direto na thread principal
+                }
+    
+                System.out.println("Processados todos os anos para a cidade " + cityID);
+            }
+    
+            System.out.println("Processamento completo realizado na thread principal.");
+            return;  // Finaliza o método
+        }
+    
+        // Se forem várias threads, continua o processamento como antes
         for (File cityFile : cityFiles) {
             String cityID = cityFile.getName();
+    
             CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
             Map<Integer, double[]> dataByYear = processor.getDataByYear();
-
+    
             if (dataByYear == null || dataByYear.isEmpty()) {
                 System.out.println("Nenhum dado de ano encontrado para a cidade " + cityID);
                 continue;
             }
-
+    
+            Thread[] yearThreads = new Thread[dataByYear.size()];
+            int index = 0;
+    
             for (Map.Entry<Integer, double[]> entry : dataByYear.entrySet()) {
                 int year = entry.getKey();
                 double[] yearData = entry.getValue();
-                processor.processYearData(year, yearData);  // Processamento direto na thread principal
+    
+                yearThreads[index] = new Thread(() -> {
+                    processor.processYearData(year, yearData);
+                });
+                yearThreads[index].start();
+                index++;
             }
-
+    
+            for (Thread yearThread : yearThreads) {
+                try {
+                    yearThread.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+    
             System.out.println("Processados todos os anos para a cidade " + cityID);
         }
+    
+        System.out.println("Todos os anos foram processados para todas as cidades.");
+    }
+    
 
-        System.out.println("Processamento completo realizado na thread principal.");
-        return;  // Finaliza o método
+    // Método para salvar o tempo de execução em um arquivo, apenas se o arquivo ainda não existir
+    private void saveTimeToFileIfNotExists(String fileName, String content) {
+        synchronized (logSync) {
+            File file = new File(fileName);
+            if (!file.exists()) {
+                try (FileWriter writer = new FileWriter(file, false)) {
+                    writer.write(content);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
-    // Se forem várias threads, continua o processamento como antes
-    for (File cityFile : cityFiles) {
-        String cityID = cityFile.getName();
-
-        CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
-        Map<Integer, double[]> dataByYear = processor.getDataByYear();
-
-        if (dataByYear == null || dataByYear.isEmpty()) {
-            System.out.println("Nenhum dado de ano encontrado para a cidade " + cityID);
-            continue;
+    // Método para salvar o tempo de execução em um arquivo (modo sobrescrita)
+    private void saveTimeToFile(String fileName, String content) {
+        synchronized (logSync) {
+            try (FileWriter writer = new FileWriter(fileName, false)) {
+                writer.write(content);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
-
-        Thread[] yearThreads = new Thread[dataByYear.size()];
-        int index = 0;
+    }
+}
