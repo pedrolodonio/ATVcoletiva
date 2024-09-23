@@ -1,8 +1,13 @@
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Map;
 
 public class Experiment {
     private int numThreads;
     private boolean processByYear;
+    private final Object logSync = new Object();  // Objeto de sincronização para garantir consistência nos logs
+
 
     public Experiment(int numThreads, boolean processByYear) {
         this.numThreads = numThreads;
@@ -10,7 +15,7 @@ public class Experiment {
     }
 
     public void runExperiment() {
-        File directory = new File("temperaturas_cidades"); // se necessário alterar pelo seu path que contém os arquivos CSV.
+        File directory = new File("C:\\Users\\Arthur\\Documents\\GitHub\\ATVcoletiva\\temperaturas_cidades"); // se necessário alterar pelo seu path que contém os arquivos CSV.
         File[] cityFiles = directory.listFiles((dir, name) -> name.endsWith(".csv"));
 
         if (cityFiles == null || cityFiles.length == 0) {
@@ -99,35 +104,43 @@ public class Experiment {
             totalExecutionTime += executionTime;
     
             // Criação do arquivo de versão de mês se o arquivo ainda não existir
+            saveTimeToFileIfNotExists("versao_" + (version + 1) + ".txt", 
+                "Número de threads: " + threads + "\n" + 
+                "Tempo de execução (Mês): " + executionTime + " ms\n");
             System.out.println("Experimento " + (version + 1) + " (Mês) concluído em: " + executionTime + " ms");
+
     
             // Para os experimentos de ano
             if (processByYear) {
                 long startYearTime = System.currentTimeMillis();
-                // Executar o experimento de ano
+                runYearExperiment();  // Executa o experimento de ano
                 long endYearTime = System.currentTimeMillis();
     
                 long yearExecutionTime = endYearTime - startYearTime;
                 totalYearExecutionTime += yearExecutionTime;
     
                 // Criação do arquivo de versão de ano se o arquivo ainda não existir.
+                saveTimeToFileIfNotExists("versao_" + (version + 11) + ".txt", 
+                    "Número de threads: " + threads + "\n" + 
+                    "Tempo de execução (Ano): " + yearExecutionTime + " ms\n");
                 System.out.println("Experimento " + (version + 11) + " (Ano) concluído em: " + yearExecutionTime + " ms");
             }
         }
     
         // Cálculo do médio dos meses.
          long averageExecutionTime = totalExecutionTime / 10;
-         System.out.println(averageExecutionTime);
+         saveTimeToFileIfNotExists("tempo_medio_mes.txt", "Tempo médio de execução (Mês): " + averageExecutionTime + " ms\n");
         // Criar o arquivo de tempo médio.
+
     
         // Cálculo do tempo médio dos anos.
         if (processByYear) {
             long averageYearExecutionTime = totalYearExecutionTime / 10;
-            System.out.println(averageYearExecutionTime);
+            saveTimeToFile("tempo_medio_ano.txt", "Tempo médio de execução (Ano): " + averageYearExecutionTime + " ms\n");
             // Criar arquivo do tempo médio dos anos.
         }
     }
-}
+
 private void runYearExperiment() {
     File directory = new File("atividade1PCD/atvcoletiva/arquivos/temperaturas_cidades");
     File[] cityFiles = directory.listFiles((dir, name) -> name.endsWith(".csv"));
@@ -178,3 +191,55 @@ private void runYearExperiment() {
 
         Thread[] yearThreads = new Thread[dataByYear.size()];
         int index = 0;
+
+        for (Map.Entry<Integer, double[]> entry : dataByYear.entrySet()) {
+            int year = entry.getKey();
+            double[] yearData = entry.getValue();
+
+            yearThreads[index] = new Thread(() -> {
+                processor.processYearData(year, yearData);
+            });
+            yearThreads[index].start();
+            index++;
+        }
+
+        for (Thread yearThread : yearThreads) {
+            try {
+                yearThread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        System.out.println("Processados todos os anos para a cidade " + cityID);
+    }
+
+    System.out.println("Todos os anos foram processados para todas as cidades.");
+}
+
+
+// Método para salvar o tempo de execução em um arquivo, apenas se o arquivo ainda não existir
+private void saveTimeToFileIfNotExists(String fileName, String content) {
+    synchronized (logSync) {
+        File file = new File(fileName);
+        if (!file.exists()) {
+            try (FileWriter writer = new FileWriter(file, false)) {
+                writer.write(content);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+
+// Método para salvar o tempo de execução em um arquivo (modo sobrescrita)
+private void saveTimeToFile(String fileName, String content) {
+    synchronized (logSync) {
+        try (FileWriter writer = new FileWriter(fileName, false)) {
+            writer.write(content);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+}
