@@ -45,10 +45,9 @@ public class Experiment {
         if (numThreads == 1) {
             processCities(cityIDs, directory);
             System.out.println("Processamento completo realizado na thread principal.");
-            return;  // Finaliza o método
+            return;
         }
-        
-        // Caso contrário, seguir a lógica original de múltiplas threads
+        // Caso contrário, seguir a lógica de múltiplas threads
         Thread[] threads = new Thread[numThreads];
         int citiesPerThread = Math.max(1, totalCities / numThreads);
     
@@ -84,76 +83,92 @@ public class Experiment {
     private void processCities(String[] cityIDs, File directory) {
         for (String cityID : cityIDs) {
             File cityFile = new File(directory, cityID);
-
+        
             if (!cityFile.exists()) {
                 continue;
             }
-
-            synchronized (this) {
-                CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
-
-                if (processByYear) {
-                    // Processamento por ano, se habilitado
-                } else {
-                    processor.processCityData();
-                }
+        
+            CityProcessor processor = new CityProcessor(cityID, cityFile.getPath());
+        
+            if (processByYear) {
+                // Processamento por ano, se habilitado
+            } else {
+                processor.processCityData();
             }
         }
     }
 
     public void runExperimentsWithDifferentThreads(int[] threadConfigurations) {
-        long totalExecutionTime = 0;
-        long totalYearExecutionTime = 0;
-    
         // Para os experimentos de mês (versao_1.txt até versao_10.txt)
         for (int version = 0; version < threadConfigurations.length; version++) {
             int threads = threadConfigurations[version];
             System.out.println("Iniciando experimento " + (version + 1) + " com " + threads + " threads.");
             this.numThreads = threads;
     
-            // Tempo de execução para o mês
-            long startTime = System.currentTimeMillis();
-            runExperiment();  // Executa o experimento de mês
-            long endTime = System.currentTimeMillis();
+            long totalExecutionTime = 0;  // Zera o tempo total de execução para o próximo experimento
+            long totalYearExecutionTime = 0;  // Zera o tempo total de ano para o próximo experimento (se for o caso)
+            StringBuilder executionDetails = new StringBuilder();  // Armazenará os detalhes do tempo de cada rodada
     
-            long executionTime = endTime - startTime;
-            totalExecutionTime += executionTime;
+            // Rodar o experimento 10 vezes
+            for (int run = 0; run < 10; run++) {
+                System.out.println("Rodada " + (run + 1) + " do experimento " + (version + 1));
+                long startTime = System.currentTimeMillis();
+                runExperiment();  // Executa o experimento de mês
+                long endTime = System.currentTimeMillis();
     
-            // Criação do arquivo de versão de mês (versao_1.txt até versao_10.txt) apenas se o arquivo ainda não existir
-            saveTimeToFileIfNotExists("versao_" + (version + 1) + ".txt", 
-                "Número de threads: " + threads + "\n" + 
-                "Tempo de execução (Mês): " + executionTime + " ms\n");
-            System.out.println("Experimento " + (version + 1) + " (Mês) concluído em: " + executionTime + " ms");
+                long executionTime = endTime - startTime;
+                totalExecutionTime += executionTime;
+    
+                // Adicionar o tempo de cada rodada ao log
+                executionDetails.append("Rodada ").append(run + 1).append(": ").append(executionTime).append(" ms\n");
+    
+                System.out.println("Rodada " + (run + 1) + " concluída em: " + executionTime + " ms");
+            }
+    
+            // Cálculo do tempo médio após 10 rodadas
+            long averageExecutionTime = totalExecutionTime / 10;
+    
+            // Adicionar o tempo médio ao log
+            executionDetails.append("Tempo médio de execução (Mês): ").append(averageExecutionTime).append(" ms\n");
+    
+            // Criação do arquivo de versão de mês (versao_1.txt até versao_10.txt)
+            saveTimeToFileIfNotExists("versao_" + (version + 1) + ".txt",
+                "Número de threads: " + threads + "\n" +
+                executionDetails.toString());  // Salva os detalhes de todas as rodadas e a média
+            System.out.println("Experimento " + (version + 1) + " (Mês) concluído com tempo médio de: " + averageExecutionTime + " ms");
     
             // Para os experimentos de ano (versao_11.txt até versao_20.txt)
             if (processByYear) {
-                long startYearTime = System.currentTimeMillis();
-                runYearExperiment();  // Executa o experimento de ano
-                long endYearTime = System.currentTimeMillis();
+                executionDetails.setLength(0);  // Limpa o log para o experimento de ano
+                for (int run = 0; run < 10; run++) {
+                    System.out.println("Rodada " + (run + 1) + " do experimento " + (version + 11) + " (Ano)");
+                    long startYearTime = System.currentTimeMillis();
+                    runYearExperiment();  // Executa o experimento de ano
+                    long endYearTime = System.currentTimeMillis();
     
-                long yearExecutionTime = endYearTime - startYearTime;
-                totalYearExecutionTime += yearExecutionTime;
+                    long yearExecutionTime = endYearTime - startYearTime;
+                    totalYearExecutionTime += yearExecutionTime;
     
-                // Criação do arquivo de versão de ano (versao_11.txt até versao_20.txt) apenas se o arquivo ainda não existir
-                saveTimeToFileIfNotExists("versao_" + (version + 11) + ".txt", 
-                    "Número de threads: " + threads + "\n" + 
-                    "Tempo de execução (Ano): " + yearExecutionTime + " ms\n");
-                System.out.println("Experimento " + (version + 11) + " (Ano) concluído em: " + yearExecutionTime + " ms");
+                    // Adicionar o tempo de cada rodada de ano ao log
+                    executionDetails.append("Rodada ").append(run + 1).append(": ").append(yearExecutionTime).append(" ms\n");
+    
+                    System.out.println("Rodada " + (run + 1) + " concluída em: " + yearExecutionTime + " ms");
+                }
+    
+                // Cálculo do tempo médio após 10 rodadas
+                long averageYearExecutionTime = totalYearExecutionTime / 10;
+    
+                // Adicionar o tempo médio ao log
+                executionDetails.append("Tempo médio de execução (Ano): ").append(averageYearExecutionTime).append(" ms\n");
+    
+                // Criação do arquivo de versão de ano (versao_11.txt até versao_20.txt)
+                saveTimeToFileIfNotExists("versao_" + (version + 11) + ".txt",
+                    "Número de threads: " + threads + "\n" +
+                    executionDetails.toString());  // Salva os detalhes de todas as rodadas e a média
+                System.out.println("Experimento " + (version + 11) + " (Ano) concluído com tempo médio de: " + averageYearExecutionTime + " ms");
             }
         }
-    
-        // Cálculo e criação do arquivo de tempo médio dos meses, apenas se o arquivo ainda não existir
-    long averageExecutionTime = totalExecutionTime / 10;
-    saveTimeToFileIfNotExists("tempo_medio_mes.txt", "Tempo médio de execução (Mês): " + averageExecutionTime + " ms\n");
-
-    
-        // Cálculo e criação do arquivo de tempo médio dos anos
-        if (processByYear) {
-            long averageYearExecutionTime = totalYearExecutionTime / 10;
-            saveTimeToFile("tempo_medio_ano.txt", "Tempo médio de execução (Ano): " + averageYearExecutionTime + " ms\n");
-        }
     }
-    
     
     private void runYearExperiment() {
         File directory = new File("/Users/ygormachado/JavaProjetoColetivo/ATVcoletiva/temperaturas_cidades");
@@ -188,7 +203,7 @@ public class Experiment {
             }
     
             System.out.println("Processamento completo realizado na thread principal.");
-            return;  // Finaliza o método
+            return;
         }
     
         // Se forem várias threads, continua o processamento como antes
@@ -246,14 +261,15 @@ public class Experiment {
         }
     }
 
+
     // Método para salvar o tempo de execução em um arquivo (modo sobrescrita)
-    private void saveTimeToFile(String fileName, String content) {
-        synchronized (logSync) {
-            try (FileWriter writer = new FileWriter(fileName, false)) {
-                writer.write(content);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+    //private void saveTimeToFile(String fileName, String content) {
+       //   synchronized (logSync) {
+          //  try (FileWriter writer = new FileWriter(fileName, false)) {
+         //       writer.write(content);
+        //    } catch (IOException e) {
+       //         e.printStackTrace();
+        //    }
+       // }
+    //}
 }
