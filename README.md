@@ -18,7 +18,7 @@ Após o download dos arquivos do projeto, o usuário deve localizar a pasta **te
 
 
 
-´´´
+~~~
 public void runExperiment() {
        File directory = new File("path da pasta temperatura_cidades");
         ....}
@@ -28,4 +28,6 @@ private void runYearExperiment() {
         File directory = new File("path da pasta temperatura_cidades");
         ....}
 
-´´´
+~~~
+
+Após isso o projeto deve ser executado normalmente.
