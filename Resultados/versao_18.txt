@@ -1,0 +1,12 @@
+Número de threads: 80
+Rodada 1: 3911 ms
+Rodada 2: 3847 ms
+Rodada 3: 3726 ms
+Rodada 4: 3886 ms
+Rodada 5: 3493 ms
+Rodada 6: 3596 ms
+Rodada 7: 3393 ms
+Rodada 8: 3438 ms
+Rodada 9: 3517 ms
+Rodada 10: 3489 ms
+Tempo médio de execução (Ano): 3629 ms
